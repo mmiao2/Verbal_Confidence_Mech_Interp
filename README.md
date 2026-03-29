@@ -86,16 +86,16 @@ pip install -r requirements.txt
 python -m src.extraction.prepare_data
 
 # Generate 50 completions per question (requires GPU + vLLM)
-python -m src.extraction.sample_completions --model qwen_instruct --split train
+python -m src.extraction.sample_completions --model llama_base --split train
 
 # Extract layer-24 activations
-python -m src.extraction.extract_activations --model qwen_instruct --split train
+python -m src.extraction.extract_activations --model llama_base --split train
 ```
 
 ### 3. Train probes
 
 ```bash
-python -m src.probes.train_probes --model qwen_instruct --split train
+python -m src.probes.train_probes --model llama_base --split train
 ```
 
 ### 4. Compute steering vectors and run steered generation
@@ -103,27 +103,27 @@ python -m src.probes.train_probes --model qwen_instruct --split train
 ```bash
 # Compute question-level CAA vector (high confidence − low confidence)
 python -m src.steering.compute_vectors \
-    --activations outputs/activations/activations_qwen_instruct_train.npz \
-    --confidences outputs/completions/completions_qwen_instruct_train.json
+    --activations outputs/activations/activations_llama_base_train.npz \
+    --confidences outputs/completions/completions_llama_base_train.json
 
 # Steered generation with alpha sweep
-python -m src.steering.steer_generate --model qwen_instruct --split test \
-    --mode steer --vector outputs/steering/question_caa_qwen_instruct_train.pt
+python -m src.steering.steer_generate --model llama_base --split test \
+    --mode steer --vector outputs/steering/question_caa_llama_base_train.pt
 ```
 
 ### 5. Run full two-stage pipeline
 
 ```bash
-python -m src.pipeline.run_pipeline --model qwen_instruct \
-    --activations outputs/activations/activations_qwen_instruct_train.npz \
-    --vector outputs/steering/question_caa_qwen_instruct_train.pt \
-    --completions outputs/completions/completions_qwen_instruct_test.json
+python -m src.pipeline.run_pipeline --model llama_base \
+    --activations outputs/activations/activations_llama_base_train.npz \
+    --vector outputs/steering/question_caa_llama_base_train.pt \
+    --completions outputs/completions/completions_llama_base_test.json
 ```
 
 ## Method Details
 
 ### Activation Extraction
-We generate *N*=50 completions per question at temperature *T*=1.0, compute empirical accuracy as the fraction correct, and extract the hidden-state activation at the last token position from a target layer (default: layer 24 for Qwen 2.5-7B) via a forward hook on the full prompt+completion sequence.
+We generate *N*=50 completions per question at temperature *T*=1.0, compute empirical accuracy as the fraction correct, and extract the hidden-state activation at the last token position from a target layer (default: layer 24 for Llama 3.1-8B) via a forward hook on the full prompt+completion sequence.
 
 ### Linear Probes
 Three probe architectures predict empirical accuracy from single-layer activations:

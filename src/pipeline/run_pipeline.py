@@ -14,10 +14,10 @@ Stage 2 (Steer):
   - Evaluate: ECE, Brier, accuracy
 
 Usage:
-    python -m src.pipeline.run_pipeline --model qwen_instruct \\
-        --activations outputs/activations/activations_qwen_instruct_train.npz \\
-        --vector outputs/steering/question_caa_qwen_instruct_train.pt \\
-        --completions outputs/completions/completions_qwen_instruct_test.json
+    python -m src.pipeline.run_pipeline --model llama_base \
+        --activations outputs/activations/activations_llama_base_train.npz \
+        --vector outputs/steering/question_caa_llama_base_train.pt \
+        --completions outputs/completions/completions_llama_base_test.json
 """
 
 import argparse
@@ -222,7 +222,7 @@ def main() -> None:
     print(f"Loading steering vector from {args.vector}")
     sv_data = torch.load(args.vector, map_location="cpu", weights_only=True)
     sv_unit = sv_data["sv_normalized"].float()
-    layer_norm = 130.0
+    layer_norm = steer_cfg.get("layer_norm", 22.91)
     sv_scaled = (sv_unit * layer_norm).to(hf_model.device, dtype=torch.bfloat16)
 
     # Load test prompts

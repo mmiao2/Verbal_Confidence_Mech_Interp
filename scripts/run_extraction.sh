@@ -3,12 +3,11 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
-#SBATCH --time=12:00:00
 #SBATCH --output=logs/extraction_%j.log
 
 set -euo pipefail
 
-MODEL=${1:-qwen_instruct}
+MODEL=${1:-llama_base}
 SPLIT=${2:-train}
 
 echo "=== Step 1: Prepare MATH dataset ==="

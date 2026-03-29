@@ -3,12 +3,11 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
-#SBATCH --time=24:00:00
 #SBATCH --output=logs/steering_%j.log
 
 set -euo pipefail
 
-MODEL=${1:-qwen_instruct}
+MODEL=${1:-llama_base}
 ACTIVATIONS=${2:-outputs/activations/activations_${MODEL}_train.npz}
 COMPLETIONS_TRAIN=${3:-outputs/completions/completions_${MODEL}_train.json}
 COMPLETIONS_TEST=${4:-outputs/completions/completions_${MODEL}_test.json}

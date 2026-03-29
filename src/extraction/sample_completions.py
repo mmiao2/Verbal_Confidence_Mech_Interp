@@ -10,8 +10,8 @@ Per-question output:
   - formatted_prompt stored for exact token reconstruction in Step 3
 
 Usage:
-    python -m src.extraction.sample_completions --model qwen_instruct --split train
-    python -m src.extraction.sample_completions --model qwen_base --split test
+    python -m src.extraction.sample_completions --model llama_base --split train
+    python -m src.extraction.sample_completions --model llama_base --split test
 """
 
 import argparse

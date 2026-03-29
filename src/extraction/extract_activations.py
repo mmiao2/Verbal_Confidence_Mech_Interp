@@ -27,8 +27,8 @@ Output NPZ fields (all length N_questions * N_seeds):
   - completion_length:  (N,) int32
 
 Usage:
-    python -m src.extraction.extract_activations --model qwen_instruct --split train
-    python -m src.extraction.extract_activations --model qwen_instruct --split train --layer 21
+    python -m src.extraction.extract_activations --model llama_base --split train
+    python -m src.extraction.extract_activations --model llama_base --split train --layer 21
 """
 
 import argparse

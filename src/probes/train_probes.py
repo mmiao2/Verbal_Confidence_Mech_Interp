@@ -10,7 +10,7 @@ Data split: 80/10/10 at question level, stratified by (level, type).
 All N seeds of a question stay in the same split.
 
 Usage:
-    python -m src.probes.train_probes --model qwen_instruct --split train
+    python -m src.probes.train_probes --model llama_base --split train
 """
 
 import argparse
@@ -304,7 +304,7 @@ def train_fisher_lda(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train probes on activations.")
-    parser.add_argument("--model", default="qwen_instruct", help="Model key")
+    parser.add_argument("--model", default="llama_base", help="Model key")
     parser.add_argument("--split", default="train", help="Data split")
     parser.add_argument("--config", default=None)
     parser.add_argument("--npz", default=None, help="Override activations NPZ path")

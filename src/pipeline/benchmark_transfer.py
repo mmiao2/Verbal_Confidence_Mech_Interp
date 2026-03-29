@@ -7,10 +7,10 @@ whether the learned confidence direction transfers across tasks.
 
 Usage:
     python -m src.pipeline.benchmark_transfer \
-        --probe_activations outputs/activations/activations_qwen_instruct_train.npz \
-        --eval_completions outputs/completions/completions_qwen_instruct_test.json \
-        --vector outputs/steering/question_caa_qwen_instruct_train.pt \
-        --model qwen_instruct
+        --probe_activations outputs/activations/activations_llama_base_train.npz \
+        --eval_completions outputs/completions/completions_llama_base_test.json \
+        --vector outputs/steering/question_caa_llama_base_train.pt \
+        --model llama_base
 """
 
 import argparse

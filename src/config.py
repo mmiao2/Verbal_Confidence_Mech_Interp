@@ -37,7 +37,7 @@ def load_config(config_path: Path | str | None = None) -> dict[str, Any]:
     # Auto-fill generation seeds if not specified
     gen = cfg.get("generation", {})
     if gen.get("seeds") is None:
-        gen["seeds"] = list(range(1, gen.get("n_seeds", 25) + 1))
+        gen["seeds"] = list(range(1, gen.get("n_seeds", 50) + 1))
 
     _CONFIG_CACHE = cfg
     return cfg

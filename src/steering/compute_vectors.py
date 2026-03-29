@@ -15,13 +15,13 @@ isolating the direction associated with confidence variation.
 
 Usage:
     python -m src.steering.compute_vectors \
-        --activations outputs/activations/activations_qwen_instruct_train.npz \
-        --confidences outputs/completions/completions_qwen_instruct_train.json \
+        --activations outputs/activations/activations_llama_base_train.npz \
+        --confidences outputs/completions/completions_llama_base_train.json \
         --output outputs/steering/question_caa_layer24.pt
 
     python -m src.steering.compute_vectors \
-        --activations outputs/activations/activations_qwen_instruct_train.npz \
-        --confidences outputs/completions/completions_qwen_instruct_train.json \
+        --activations outputs/activations/activations_llama_base_train.npz \
+        --confidences outputs/completions/completions_llama_base_train.json \
         --low_threshold 0.25 --high_threshold 0.75
 """
 

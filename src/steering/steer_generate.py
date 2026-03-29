@@ -13,13 +13,13 @@ metrics.
 
 Usage:
     # Baseline (no steering)
-    python -m src.steering.steer_generate --model qwen_instruct \\
+    python -m src.steering.steer_generate --model llama_base \\
         --split test --mode baseline
 
     # Steered generation with alpha sweep
-    python -m src.steering.steer_generate --model qwen_instruct \\
+    python -m src.steering.steer_generate --model llama_base \\
         --split test --mode steer \\
-        --vector outputs/steering/question_caa_qwen_instruct_train.pt \\
+        --vector outputs/steering/question_caa_llama_base_train.pt \\
         --alphas -2.0 -1.0 -0.5 0.5 1.0 2.0
 """
 
@@ -38,7 +38,6 @@ from src.steering.steering_utils import (
     parse_answer_from_completion,
     check_math_answer,
 )
-from src.utils.prompts import format_prompt
 
 
 def generate_batch(
@@ -220,7 +219,7 @@ def main() -> None:
         sv_raw = sv_data["sv_normalized"].float()
 
         # Scale to match layer activation norms
-        layer_norm = 130.0  # typical residual stream norm
+        layer_norm = steer_cfg.get("layer_norm", 22.91)
         sv_scaled = (sv_raw * layer_norm).to(model.device, dtype=torch.bfloat16)
 
         alphas = args.alphas if args.alphas else steer_cfg["alphas"]
