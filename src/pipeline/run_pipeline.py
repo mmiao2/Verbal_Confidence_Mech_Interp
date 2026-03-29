@@ -108,7 +108,7 @@ def main() -> None:
     parser.add_argument("--layer", type=int, default=None)
     parser.add_argument("--config", default=None)
     parser.add_argument("--output_dir", default=None)
-    parser.add_argument("--n_seeds", type=int, default=25, help="Seeds for steered eval")
+    parser.add_argument("--n_seeds", type=int, default=50, help="Seeds for steered eval")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
