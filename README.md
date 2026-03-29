@@ -1,8 +1,8 @@
 # Activation-Informed Calibration
 
-Code for the paper: **"Activation-Informed Confidence Calibration via Linear Probes and Contrastive Steering"**
+Code for the Mar 2026 paper: **"Closing the Confidence-Faithfulness Gap in Large Language Models"**
 
-We show that linear probes trained on intermediate-layer activations can predict a language model's empirical accuracy on math reasoning tasks, and that contrastive activation addition (CAA) steering vectors derived from verbalized confidence can modulate model confidence at inference time.
+We show that linear probes trained on intermediate-layer activations can predict a language model's empirical accuracy, and that contrastive activation addition (CAA) steering vectors derived from verbalized confidence can modulate model confidence at inference time.
 
 ## Pipeline Overview
 
@@ -85,7 +85,7 @@ pip install -r requirements.txt
 # Download MATH dataset
 python -m src.extraction.prepare_data
 
-# Generate 25 completions per question (requires GPU + vLLM)
+# Generate 50 completions per question (requires GPU + vLLM)
 python -m src.extraction.sample_completions --model qwen_instruct --split train
 
 # Extract layer-24 activations
@@ -123,7 +123,7 @@ python -m src.pipeline.run_pipeline --model qwen_instruct \
 ## Method Details
 
 ### Activation Extraction
-We generate *N*=25 completions per question at temperature *T*=1.0, compute empirical accuracy as the fraction correct, and extract the hidden-state activation at the last token position from a target layer (default: layer 24 for Qwen 2.5-7B) via a forward hook on the full prompt+completion sequence.
+We generate *N*=50 completions per question at temperature *T*=1.0, compute empirical accuracy as the fraction correct, and extract the hidden-state activation at the last token position from a target layer (default: layer 24 for Qwen 2.5-7B) via a forward hook on the full prompt+completion sequence.
 
 ### Linear Probes
 Three probe architectures predict empirical accuracy from single-layer activations:
@@ -150,13 +150,15 @@ During autoregressive decoding, a forward hook at the target layer adds `alpha *
 ## Citation
 
 ```bibtex
-@article{anonymous2025activation,
-  title={Activation-Informed Confidence Calibration via Linear Probes and Contrastive Steering},
-  author={Anonymous},
-  year={2025}
+@misc{miao2026closingconfidencefaithfulnessgaplarge,
+      title={Closing the Confidence-Faithfulness Gap in Large Language Models}, 
+      author={Miranda Muqing Miao and Lyle Ungar},
+      year={2026},
+      eprint={2603.25052},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2603.25052}, 
 }
 ```
 
-## License
 
-MIT
