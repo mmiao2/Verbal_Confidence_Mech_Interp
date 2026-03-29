@@ -1,0 +1,124 @@
+# ============================================================================
+# Activation-Informed Calibration — Default Configuration
+# ============================================================================
+
+# --- Models ---
+models:
+  qwen_base:
+    hf_id: "Qwen/Qwen2.5-7B"
+    is_instruct: false
+    num_layers: 28
+    hidden_dim: 3584
+  qwen_instruct:
+    hf_id: "Qwen/Qwen2.5-7B-Instruct"
+    is_instruct: true
+    num_layers: 28
+    hidden_dim: 3584
+  llama_base:
+    hf_id: "meta-llama/Llama-3.1-8B"
+    is_instruct: false
+    num_layers: 32
+    hidden_dim: 4096
+  llama_instruct:
+    hf_id: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    is_instruct: true
+    num_layers: 32
+    hidden_dim: 4096
+  mistral_base:
+    hf_id: "mistralai/Mistral-7B-v0.1"
+    is_instruct: false
+    num_layers: 32
+    hidden_dim: 4096
+  mistral_instruct:
+    hf_id: "mistralai/Mistral-7B-Instruct-v0.3"
+    is_instruct: true
+    num_layers: 32
+    hidden_dim: 4096
+  deepseek_base:
+    hf_id: "deepseek-ai/deepseek-llm-7b-base"
+    is_instruct: false
+    num_layers: 30
+    hidden_dim: 4096
+  deepseek_instruct:
+    hf_id: "deepseek-ai/deepseek-llm-7b-chat"
+    is_instruct: true
+    num_layers: 30
+    hidden_dim: 4096
+
+# --- Dataset ---
+benchmark:
+  name: "math"
+  hf_id: "DigitalLearningGmbH/MATH-lighteval"
+  hf_config: null
+  train_split: "train"    # ~7.5k questions
+  test_split: "test"      # ~5k questions
+  question_field: "problem"
+  answer_field: "solution"
+  answer_in_solution: true  # gold answer is extracted from \boxed{} in solution
+
+# --- Generation ---
+generation:
+  n_seeds: 25                   # completions per question
+  seeds: null                   # auto: [1, 2, ..., n_seeds]
+  temperature: 1.0
+  max_new_tokens: 2048
+
+# --- vLLM ---
+vllm:
+  tensor_parallel_size: 1
+  max_model_len: 4096
+  gpu_memory_utilization: 0.90
+
+# --- Activation extraction ---
+extraction:
+  layer: 24                     # target layer for activation extraction
+  batch_size: 8
+
+# --- Probe training ---
+probes:
+  val_frac: 0.1
+  test_frac: 0.1
+  seed: 42
+  ridge:
+    alpha_grid: [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0]
+  mlp:
+    hidden_dims: [512, 256]
+    dropout: 0.2
+    weight_decay_grid: [0, 0.1, 1.0, 5.0, 10.0, 25.0]
+    output_penalty_grid: [0, 0.01, 0.1, 0.25]
+    lr: 0.001
+    batch_size: 256
+    epochs: 100
+    patience: 30
+  fisher_lda:
+    shrinkage_grid: [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0]
+
+# --- Steering ---
+steering:
+  layer: 21                     # layer to hook during generation
+  injection_mode: "answer_per_token"  # steer only during decoding
+  alphas: [-2.0, -1.0, -0.5, 0.5, 1.0, 2.0]
+  batch_size: 4
+  max_new_tokens: 2048
+  layer_norm: 130.0             # residual stream norm scaling factor
+
+# --- Question-level CAA ---
+question_caa:
+  low_threshold: 0.25           # upper bound for low-confidence bin
+  high_threshold: 0.75          # lower bound for high-confidence bin
+  layers: [3, 6, 9, 12, 15, 18, 21, 24, 27]  # layers to compute vectors for
+
+# --- Two-stage pipeline ---
+pipeline:
+  sweep_alphas_step: 0.1        # sweep from -2.0 to +2.0 in 0.1 steps
+  sweep_alphas_range: [-2.0, 2.0]
+
+# --- Paths ---
+paths:
+  output_dir: "outputs"
+  data_dir: "outputs/data"
+  completions_dir: "outputs/completions"
+  activations_dir: "outputs/activations"
+  probes_dir: "outputs/probes"
+  steering_dir: "outputs/steering"
+  figures_dir: "outputs/figures"

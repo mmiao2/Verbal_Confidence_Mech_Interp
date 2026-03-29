@@ -1,0 +1,10 @@
+torch>=2.1
+transformers>=4.51.0
+datasets
+numpy
+scipy
+scikit-learn
+tqdm
+pydantic
+matplotlib
+# vllm>=0.6.0  # Required for completion sampling (Step 2). Optional otherwise.
