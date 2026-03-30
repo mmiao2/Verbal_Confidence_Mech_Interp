@@ -25,7 +25,7 @@ models:
     num_layers: 32
     hidden_dim: 4096
   mistral_base:
-    hf_id: "mistralai/Mistral-7B-v0.1"
+    hf_id: "mistralai/Mistral-7B-v0.3"
     is_instruct: false
     num_layers: 32
     hidden_dim: 4096

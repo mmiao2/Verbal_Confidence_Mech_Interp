@@ -9,7 +9,10 @@ generation via a forward hook on the target layer. Supports two modes:
                in answer_per_token mode (steer only during decoding)
 
 For each alpha, generates completions, parses confidence, and records
-metrics.
+metrics. Supports:
+  - Full answer generation (--prompt_type answer, default)
+  - Confidence-only generation (--prompt_type confidence_only, faster)
+  - Instruct model steering (--use_chat_template --model_override)
 
 Usage:
     # Baseline (no steering)
@@ -21,6 +24,18 @@ Usage:
         --split test --mode steer \\
         --vector outputs/steering/question_caa_llama_base_train.pt \\
         --alphas -2.0 -1.0 -0.5 0.5 1.0 2.0
+
+    # Confidence-only steering (Section 3.4)
+    python -m src.steering.steer_generate --model llama_base \\
+        --split test --mode steer --prompt_type confidence_only \\
+        --vector outputs/steering/question_caa_llama_base_train.pt
+
+    # Instruct model with base vector (Section 3.5)
+    python -m src.steering.steer_generate --model llama_base \\
+        --split test --mode steer --prompt_type confidence_only \\
+        --model_override meta-llama/Meta-Llama-3.1-8B-Instruct \\
+        --use_chat_template \\
+        --vector outputs/steering/question_caa_llama_base_train.pt
 """
 
 import argparse
@@ -139,6 +154,13 @@ def main() -> None:
     parser.add_argument("--batch_size", type=int, default=None)
     parser.add_argument("--max_new_tokens", type=int, default=None)
     parser.add_argument("--n_seeds", type=int, default=1, help="Seeds per question")
+    parser.add_argument("--use_chat_template", action="store_true",
+                        help="Wrap prompts with tokenizer chat template (for instruct models)")
+    parser.add_argument("--model_override", default=None,
+                        help="Override HF model ID (e.g. use instruct model with base vector)")
+    parser.add_argument("--prompt_type", default="answer",
+                        choices=["answer", "confidence_only"],
+                        help="Prompt type: full answer or confidence-only (for steering eval)")
     parser.add_argument("--config", default=None)
     parser.add_argument("--output", default=None)
     args = parser.parse_args()
@@ -149,7 +171,6 @@ def main() -> None:
 
     layer = args.layer if args.layer is not None else steer_cfg["layer"]
     batch_size = args.batch_size if args.batch_size is not None else steer_cfg["batch_size"]
-    max_new_tokens = args.max_new_tokens or steer_cfg["max_new_tokens"]
 
     # Load data
     comp_path = completions_path(cfg, args.model, args.split)
@@ -157,19 +178,45 @@ def main() -> None:
     with open(comp_path) as f:
         data = json.load(f)
 
-    prompts = [item["formatted_prompt"] for item in data]
+    # Build prompts based on prompt_type
+    hf_id = args.model_override if args.model_override else model_cfg["hf_id"]
+
+    if args.prompt_type == "confidence_only":
+        from src.utils.prompts import PURE_CONFIDENCE_PROMPT
+        prompts = [PURE_CONFIDENCE_PROMPT.format(problem=item["question"]) for item in data]
+        max_new_tokens = 50  # confidence-only needs far fewer tokens
+    else:
+        prompts = [item["formatted_prompt"] for item in data]
+
     gold_answers = [item["gold_answer"] for item in data]
-    print(f"  {len(prompts)} questions")
+    print(f"  {len(prompts)} questions (prompt_type={args.prompt_type})")
 
     # Load model
-    print(f"Loading model {model_cfg['hf_id']}...")
-    tokenizer = AutoTokenizer.from_pretrained(model_cfg["hf_id"], trust_remote_code=True)
+    print(f"Loading model {hf_id}...")
+    tokenizer = AutoTokenizer.from_pretrained(hf_id, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
 
+    # Wrap prompts with chat template if requested (for instruct models)
+    if args.use_chat_template:
+        print("Applying chat template to prompts...")
+        wrapped = []
+        for p in prompts:
+            messages = [{"role": "user", "content": p}]
+            text = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True)
+            wrapped.append(text)
+        prompts = wrapped
+
+    # Override max_new_tokens for confidence-only
+    if args.prompt_type == "confidence_only":
+        max_new_tokens = 50
+    else:
+        max_new_tokens = args.max_new_tokens or steer_cfg["max_new_tokens"]
+
     model = AutoModelForCausalLM.from_pretrained(
-        model_cfg["hf_id"],
+        hf_id,
         torch_dtype=torch.bfloat16,
         device_map="auto",
         trust_remote_code=True,

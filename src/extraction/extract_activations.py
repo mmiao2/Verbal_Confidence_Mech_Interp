@@ -4,11 +4,14 @@ Step 3: Extract hidden-state activations from completions.
 For each (question, seed) pair from Step 2:
   1. Reconstruct the full token sequence: formatted_prompt + raw_completion
   2. Run a single forward pass with HF Transformers
-  3. Extract the target-layer hidden state at the last token position
+  3. Extract the target-layer hidden state at a chosen token position
 
-The hidden state at position T in a full forward pass is identical to the one
-produced during autoregressive generation (causal attention mask), so this is
-equivalent to extracting the activation at the last generated token.
+Supports two extraction positions (--position):
+  - answer_last (default): Last generated token — equivalent to the activation
+    at the final decode step during autoregressive generation.
+  - prompt_last: Last prompt token (before generation starts) — captures the
+    model's representation of the prompt before any answer tokens are produced.
+    Used for computing pure-confidence CAA steering vectors (Section 2.2).
 
 Uses left-padding so the last position in every batch element is the last
 real token.
@@ -48,6 +51,11 @@ def main() -> None:
     parser.add_argument("--split", default="train", choices=["train", "test"])
     parser.add_argument("--batch_size", type=int, default=None, help="Override extraction batch size")
     parser.add_argument("--layer", type=int, default=None, help="Override extraction layer")
+    parser.add_argument("--position", default="answer_last",
+                        choices=["answer_last", "prompt_last"],
+                        help="Token position for extraction: "
+                             "answer_last = last generated token (default), "
+                             "prompt_last = last prompt token before generation")
     parser.add_argument("--config", default=None, help="Path to YAML config")
     parser.add_argument("--output", default=None, help="Output NPZ path (auto if omitted)")
     args = parser.parse_args()
@@ -81,6 +89,8 @@ def main() -> None:
     meta_question_text: list[str] = []
     meta_question_level: list[str] = []
     meta_question_type: list[str] = []
+
+    prompt_lengths: list[int] = []  # token lengths of prompts (for prompt_last mode)
 
     for item in data:
         prompt = item["formatted_prompt"]
@@ -121,13 +131,17 @@ def main() -> None:
 
     hook_handle = target_layer.register_forward_hook(hook_fn)
 
-    # Compute completion token lengths
+    # Compute completion token lengths (needed for prompt_last extraction)
     print("Computing completion token lengths...")
     meta_completion_length: list[int] = []
     for item in data:
+        prompt_tok_len = len(tokenizer.encode(item["formatted_prompt"], add_special_tokens=False))
         for comp in item["completions"]:
             toks = tokenizer.encode(comp["raw_text"], add_special_tokens=False)
             meta_completion_length.append(len(toks))
+            prompt_lengths.append(prompt_tok_len)
+
+    print(f"Extraction position: {args.position}")
 
     # Process in batches with left-padding
     max_model_len = cfg["vllm"]["max_model_len"]
@@ -152,8 +166,22 @@ def main() -> None:
         with torch.no_grad():
             model(**inputs)
 
-        # With left-padding, the last position is always the last real token
-        last_hidden = captured["hidden"][:, -1, :].cpu().numpy().astype(np.float16)
+        if args.position == "answer_last":
+            # With left-padding, the last position is always the last real token
+            last_hidden = captured["hidden"][:, -1, :].cpu().numpy().astype(np.float16)
+        else:
+            # prompt_last: extract at position just before generation starts
+            # With left-padding: prompt ends at position -(completion_length+1)
+            batch_acts = []
+            for j in range(batch_end - batch_start):
+                comp_len = meta_completion_length[batch_start + j]
+                # Position of last prompt token = total_len - comp_len - 1
+                prompt_pos = captured["hidden"].shape[1] - comp_len - 1
+                prompt_pos = max(0, prompt_pos)  # safety clamp
+                batch_acts.append(
+                    captured["hidden"][j, prompt_pos, :].cpu().numpy().astype(np.float16)
+                )
+            last_hidden = np.stack(batch_acts, axis=0)
         all_activations.append(last_hidden)
 
     hook_handle.remove()

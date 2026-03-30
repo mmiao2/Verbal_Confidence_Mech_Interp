@@ -9,20 +9,31 @@ We show that linear probes trained on intermediate-layer activations can predict
 The codebase implements five core components:
 
 ```
-(1) Activation Extraction     Extract hidden-state activations from model completions
+(1) Data & Completions        Generate N=50 completions per question (vLLM)
          │
          ▼
-(2) Linear Probe Training     Train Ridge / MLP / Fisher LDA probes on activations
+(2a) Activation Extraction    Extract hidden-state activations at prompt_last or
+         │                    answer_last token position via forward hooks
+         │
+(2b) Confidence Generation    Generate pure-confidence completions with level notes
+         │                    (Table 5) for contrastive CAA vector computation
+         │
+         ▼
+(3) Linear Probe Training     Train Ridge / MLP / Fisher LDA probes on activations
          │                    to predict empirical accuracy
          ▼
-(3) CAA Steering Vectors      Compute question-level contrastive activation addition
+(4) CAA Steering Vectors      Compute question-level contrastive activation addition
          │                    vectors: mean(high confidence) − mean(low confidence)
          ▼
-(4) Steered Generation        Apply steering vectors during decoding via forward hooks
+(5) Steered Generation        Apply steering vectors during decoding via forward hooks
          │                    at target layers (answer_per_token injection)
+         │                    Supports confidence-only and instruct model steering
          ▼
-(5) Two-Stage Pipeline        End-to-end: probe → alpha sweep → adaptive steered eval
-                              across multiple models and benchmarks
+(6) Two-Stage Pipeline        End-to-end: probe → alpha sweep → adaptive steered eval
+         │                    across multiple models and benchmarks
+         ▼
+(7) Benchmark Transfer        Cross-dataset steering transfer (MATH → MMLU/TriviaQA/
+                              TruthfulQA) and base-to-instruct transfer
 ```
 
 ## Repository Structure
@@ -31,10 +42,11 @@ The codebase implements five core components:
 ├── configs/
 │   └── default.yaml              # Model/dataset/experiment configuration
 ├── src/
-│   ├── extraction/               # (1) Activation extraction
+│   ├── extraction/               # (1-2) Data generation & activation extraction
 │   │   ├── prepare_data.py       #     Download & prepare MATH dataset
 │   │   ├── sample_completions.py #     Generate N completions per question (vLLM)
-│   │   └── extract_activations.py#     Extract layer activations via forward hooks
+│   │   ├── extract_activations.py#     Extract layer activations via forward hooks
+│   │   └── generate_confidence.py#     Pure-confidence completions with level notes
 │   ├── probes/                   # (2) Linear probe training
 │   │   ├── probe_models.py       #     Ridge, MLP, Fisher LDA probe implementations
 │   │   ├── train_probes.py       #     Train & evaluate probes on activations
@@ -88,8 +100,23 @@ python -m src.extraction.prepare_data
 # Generate 50 completions per question (requires GPU + vLLM)
 python -m src.extraction.sample_completions --model llama_base --split train
 
-# Extract layer-24 activations
+# Extract layer-24 activations (answer_last = last generated token, default)
 python -m src.extraction.extract_activations --model llama_base --split train
+
+# Extract prompt-token activations (for CAA vector computation)
+python -m src.extraction.extract_activations --model llama_base --split train \
+    --position prompt_last --output outputs/activations/activations_llama_base_train_prompt.npz
+```
+
+### 2b. Generate pure-confidence completions (for CAA vectors)
+
+```bash
+# Generate confidence-only completions with all 14 level notes (Table 5)
+python -m src.extraction.generate_confidence --model llama_base --split train
+
+# Or generate with specific levels only
+python -m src.extraction.generate_confidence --model llama_base --split train \
+    --levels level_2_very_cautious level_8_vanilla_no_note
 ```
 
 ### 3. Train probes
@@ -106,9 +133,20 @@ python -m src.steering.compute_vectors \
     --activations outputs/activations/activations_llama_base_train.npz \
     --confidences outputs/completions/completions_llama_base_train.json
 
-# Steered generation with alpha sweep
+# Steered generation with alpha sweep (full answer mode)
 python -m src.steering.steer_generate --model llama_base --split test \
     --mode steer --vector outputs/steering/question_caa_llama_base_train.pt
+
+# Confidence-only steered generation (faster, for calibration evaluation)
+python -m src.steering.steer_generate --model llama_base --split test \
+    --mode steer --vector outputs/steering/question_caa_llama_base_train.pt \
+    --prompt_type confidence_only
+
+# Instruct model steering (base vector on instruct model with chat template)
+python -m src.steering.steer_generate --model llama_base --split test \
+    --mode steer --vector outputs/steering/question_caa_llama_base_train.pt \
+    --model_override meta-llama/Meta-Llama-3.1-8B-Instruct --use_chat_template \
+    --prompt_type confidence_only
 ```
 
 ### 5. Run full two-stage pipeline
@@ -118,6 +156,24 @@ python -m src.pipeline.run_pipeline --model llama_base \
     --activations outputs/activations/activations_llama_base_train.npz \
     --vector outputs/steering/question_caa_llama_base_train.pt \
     --completions outputs/completions/completions_llama_base_test.json
+```
+
+### 6. Cross-benchmark transfer (Section 3.6)
+
+```bash
+# Steering transfer: apply MATH-trained vector to MMLU
+python -m src.pipeline.benchmark_transfer \
+    --model llama_base --mode steer --benchmark mmlu \
+    --benchmark_data outputs/data/mmlu_test.jsonl \
+    --vector outputs/steering/question_caa_llama_base_train.pt \
+    --alphas -0.75 -0.5 -0.25 0 0.25 0.5 0.75
+
+# Probe transfer: train probe on MATH, evaluate on MMLU activations
+python -m src.pipeline.benchmark_transfer \
+    --model llama_base --mode probe \
+    --probe_activations outputs/activations/activations_llama_base_train.npz \
+    --eval_activations outputs/activations/activations_llama_base_mmlu.npz \
+    --vector outputs/steering/question_caa_llama_base_train.pt
 ```
 
 ## Method Details
