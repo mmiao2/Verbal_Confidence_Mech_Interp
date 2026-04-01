@@ -236,6 +236,46 @@ VANILLA_KEY = "level_8_vanilla_no_note"
 
 
 # =============================================================
+# Few-shot confidence prompt for base models
+#
+# Base models (LLaMA, Mistral, DeepSeek) need few-shot examples
+# with level-specific confidence values to produce meaningful
+# numbers.  Text notes alone produce degenerate outputs (all-0).
+# =============================================================
+
+FEWSHOT_CONFIDENCE_TEMPLATE = """Rate your confidence (0-100) that you can solve each math problem correctly.
+
+Problem: What is 2 + 2?
+Confidence: {c1}
+
+Problem: Find all real solutions to x^4 - 3x^3 + 2x^2 + x - 1 = 0.
+Confidence: {c2}
+
+Problem: Compute the integral of sin(x)*cos(x) from 0 to pi/2.
+Confidence: {c3}
+
+Problem: {problem}
+Confidence: """
+
+LEVEL_FEWSHOT_CONFS: dict[str, tuple[int, int, int]] = {
+    "level_1_extreme_caution":      (5,  12, 3),
+    "level_1p25_cautious_below30":  (15, 22, 8),
+    "level_1p5_cautious_below50":   (28, 35, 20),
+    "level_1p75_moderate":          (38, 45, 30),
+    "level_2_very_cautious":        (25, 18, 10),
+    "level_3_cautious":             (32, 40, 25),
+    "level_4_mildly_cautious":      (42, 50, 35),
+    "level_5_calibrated":           (55, 48, 62),
+    "level_6_mildly_confident":     (65, 72, 58),
+    "level_7_confident":            (80, 88, 75),
+    "level_7p5_very_confident":     (88, 92, 82),
+    "level_7p75_highly_confident":  (93, 96, 90),
+    "level_7p9_near_certain":       (97, 99, 95),
+    "level_8_vanilla_no_note":      (50, 65, 35),
+}
+
+
+# =============================================================
 # Helpers
 # =============================================================
 
@@ -264,12 +304,23 @@ def get_confidence_prompt(is_instruct: bool) -> str:
     return VERBALIZED_CONF_INSTRUCT if is_instruct else VERBALIZED_CONF_BASE
 
 
-def build_confidence_prompt(problem: str, level: str) -> str:
-    """Build a confidence-only prompt with a specific confidence level note.
+def build_confidence_prompt(problem: str, level: str, use_fewshot: bool = True) -> str:
+    """Build a confidence-only prompt with a specific confidence level.
 
     Used for generating contrastive confidence completions to compute
     CAA steering vectors (Section 2.2).
+
+    Args:
+        problem: The math problem text.
+        level: Key from CONFIDENCE_LEVELS.
+        use_fewshot: If True, use few-shot format with level-specific example
+            confidence values (required for base models).  If False, use
+            zero-shot PURE_CONFIDENCE_PROMPT + level note.
     """
+    if use_fewshot:
+        c1, c2, c3 = LEVEL_FEWSHOT_CONFS.get(level, (50, 65, 35))
+        return FEWSHOT_CONFIDENCE_TEMPLATE.format(
+            problem=problem, c1=c1, c2=c2, c3=c3)
     base = PURE_CONFIDENCE_PROMPT.format(problem=problem)
     note = CONFIDENCE_LEVELS[level]["note"]
     return base + note

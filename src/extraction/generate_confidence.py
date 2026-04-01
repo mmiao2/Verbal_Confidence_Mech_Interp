@@ -29,6 +29,7 @@ from src.utils.prompts import (
     PURE_CONFIDENCE_PROMPT,
     CONFIDENCE_LEVELS,
     LEVEL_KEYS,
+    LEVEL_FEWSHOT_CONFS,
     build_confidence_prompt,
 )
 
@@ -61,6 +62,9 @@ def main() -> None:
                         help="Seeds per (question, level) pair (default: from config)")
     parser.add_argument("--max_questions", type=int, default=None,
                         help="Limit number of questions (for testing)")
+    parser.add_argument("--no_fewshot", action="store_true",
+                        help="Use zero-shot + level notes instead of few-shot format "
+                             "(default is few-shot, which base models require)")
     parser.add_argument("--config", default=None, help="Path to YAML config")
     parser.add_argument("--output", default=None, help="Output JSON path")
     args = parser.parse_args()
@@ -96,9 +100,12 @@ def main() -> None:
     all_prompts: list[str] = []
     prompt_meta: list[dict] = []
 
+    use_fewshot = not args.no_fewshot
+    print(f"Prompt format: {'few-shot' if use_fewshot else 'zero-shot + level notes'}")
+
     for q in questions:
         for lev in levels:
-            prompt = build_confidence_prompt(q["question"], lev)
+            prompt = build_confidence_prompt(q["question"], lev, use_fewshot=use_fewshot)
             all_prompts.append(prompt)
             prompt_meta.append({
                 "question_idx": q.get("question_idx", q.get("id", "")),
@@ -143,9 +150,11 @@ def main() -> None:
         print(f"\n--- Seed {seed}/{n_seeds} ---")
         params = SamplingParams(
             n=1,
-            temperature=gen_cfg["temperature"],
-            max_tokens=50,  # confidence-only: short output
+            temperature=0.7,
+            top_p=0.9,
+            max_tokens=16,  # confidence-only: just a number
             seed=seed,
+            stop=["\n"],
         )
         outputs = llm.generate(all_prompts, params)
 

@@ -58,7 +58,7 @@ benchmark:
 
 # --- Generation ---
 generation:
-  n_seeds: 50                   # completions per question
+  n_seeds: 25                   # completions per question
   seeds: null                   # auto: [1, 2, ..., n_seeds]
   temperature: 1.0
   max_new_tokens: 2048
